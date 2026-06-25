@@ -1,0 +1,29 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.example.childapp'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.example.childapp"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    
+    // Google Play Services for Location
+    implementation 'com.google.android.gms:play-services-location:21.2.0'
+    
+    // Supabase
+    implementation "io.github.jan-tennert.supabase:postgrest-kt:2.4.3"
+    implementation "io.github.jan-tennert.supabase:realtime-kt:2.4.3"
+    implementation "io.ktor:ktor-client-android:2.3.11"
+}

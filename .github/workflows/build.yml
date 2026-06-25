@@ -1,0 +1,49 @@
+name: Build Android APKs
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+      with:
+        gradle-version: wrapper
+
+    - name: Grant execute permission for gradlew (if it exists)
+      run: chmod +x gradlew || true
+
+    - name: Build Parent App APK
+      run: gradle :ParentApp:assembleDebug
+
+    - name: Build Child App APK
+      run: gradle :ChildApp:assembleDebug
+
+    - name: Upload Parent App APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: ParentApp-APK
+        path: ParentApp/build/outputs/apk/debug/ParentApp-debug.apk
+
+    - name: Upload Child App APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: ChildApp-APK
+        path: ChildApp/build/outputs/apk/debug/ChildApp-debug.apk
