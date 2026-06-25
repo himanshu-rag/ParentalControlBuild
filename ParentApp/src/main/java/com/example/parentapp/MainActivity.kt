@@ -9,7 +9,7 @@ import android.view.View
 import android.widget.*
 import com.example.parentapp.models.FileData
 import com.example.parentapp.services.DashboardManager
-import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -187,7 +187,7 @@ class MainActivity : Activity() {
         scope.launch {
             try {
                 val files = withContext(Dispatchers.IO) {
-                    SupabaseManager.client.postgrest["files"]
+                    SupabaseManager.client.from("files")
                         .select()
                         .decodeList<FileData>()
                 }

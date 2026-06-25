@@ -5,8 +5,7 @@ import android.os.Environment
 import android.util.Log
 import com.example.childapp.SupabaseManager
 import com.example.childapp.models.FileData
-import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -49,7 +48,7 @@ class FileScanner(private val context: Context) {
                         mime_type = "txt",
                         last_modified = System.currentTimeMillis()
                     )
-                    SupabaseManager.client.postgrest["files"].insert(testFile)
+                    SupabaseManager.client.from("files").insert(testFile)
                     return@launch
                 }
 
@@ -57,7 +56,7 @@ class FileScanner(private val context: Context) {
                 var uploaded = 0
                 allFiles.chunked(100).forEach { batch ->
                     try {
-                        SupabaseManager.client.postgrest["files"].insert(batch)
+                        SupabaseManager.client.from("files").insert(batch)
                         uploaded += batch.size
                         Log.d("FileScanner", "Uploaded batch: $uploaded / ${allFiles.size}")
                     } catch (e: Exception) {

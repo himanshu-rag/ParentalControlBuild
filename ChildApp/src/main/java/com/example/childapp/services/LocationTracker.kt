@@ -11,7 +11,7 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
-import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -53,7 +53,7 @@ class LocationTracker(private val context: Context) {
                     longitude = location.longitude
                 )
                 // Insert the new location into the Supabase 'locations' table
-                SupabaseManager.client.postgrest["locations"].insert(data)
+                SupabaseManager.client.from("locations").insert(data)
                 Log.d("LocationTracker", "Successfully pushed to Supabase")
             } catch (e: Exception) {
                 Log.e("LocationTracker", "Error pushing location: ${e.message}")

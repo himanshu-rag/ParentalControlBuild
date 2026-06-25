@@ -5,7 +5,7 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import java.util.Calendar
 import kotlinx.coroutines.launch
-import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.from
 
 class AppUsageHelper(private val context: Context) {
 
@@ -49,7 +49,7 @@ class AppUsageHelper(private val context: Context) {
                 
                 // Clear today's stats for this device (assuming single device for now) and insert new ones
                 // In a production app, we would Upsert (Update or Insert) based on package name and date
-                com.example.childapp.SupabaseManager.client.postgrest["app_usage"].insert(usageDataList)
+                com.example.childapp.SupabaseManager.client.from("app_usage").insert(usageDataList)
                 android.util.Log.d("AppUsageHelper", "Successfully synced ${usageDataList.size} app stats to Supabase")
             } catch (e: Exception) {
                 android.util.Log.e("AppUsageHelper", "Error syncing app usage: ${e.message}")

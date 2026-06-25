@@ -2,61 +2,60 @@ package com.example.parentapp.services
 
 import android.util.Log
 import com.example.parentapp.SupabaseManager
-import com.example.parentapp.models.LocationData
-import io.github.jan.supabase.realtime.PostgresAction
-import io.github.jan.supabase.realtime.channel
-import io.github.jan.supabase.realtime.postgresChangeFlow
-import io.github.jan.supabase.realtime.realtime
-import io.github.jan.supabase.realtime.decodeRecord
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
-
 import com.example.parentapp.models.AppUsageData
+import com.example.parentapp.models.LocationData
 import com.example.parentapp.models.NotificationData
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class DashboardManager(
     private val onLocationUpdated: (LocationData) -> Unit,
     private val onNotificationReceived: (NotificationData) -> Unit
 ) {
-
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
 
     fun startListening() {
+        // Poll every 30 seconds for new data (simpler than realtime sockets)
         coroutineScope.launch {
-            try {
-                SupabaseManager.client.realtime.connect()
+            while (true) {
+                try {
+                    // Fetch latest location
+                    val locations = SupabaseManager.client.from("locations")
+                        .select()
+                        .decodeList<LocationData>()
+                    if (locations.isNotEmpty()) {
+                        val latest = locations.last()
+                        kotlinx.coroutines.withContext(Dispatchers.Main) {
+                            onLocationUpdated(latest)
+                        }
+                    }
 
-                // Location Channel
-                val locChannel = SupabaseManager.client.channel("public:locations")
-                locChannel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") { table = "locations" }
-                    .onEach { action ->
-                        val newLocation = action.decodeRecord<LocationData>()
-                        kotlinx.coroutines.withContext(Dispatchers.Main) { onLocationUpdated(newLocation) }
-                    }.launchIn(coroutineScope)
-                locChannel.subscribe()
-
-                // Notifications Channel
-                val notifChannel = SupabaseManager.client.channel("public:notifications")
-                notifChannel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") { table = "notifications" }
-                    .onEach { action ->
-                        val newNotif = action.decodeRecord<NotificationData>()
-                        kotlinx.coroutines.withContext(Dispatchers.Main) { onNotificationReceived(newNotif) }
-                    }.launchIn(coroutineScope)
-                notifChannel.subscribe()
-                
-            } catch (e: Exception) {
-                Log.e("DashboardManager", "Error setting up real-time listener: ${e.message}")
+                    // Fetch latest notification
+                    val notifs = SupabaseManager.client.from("notifications")
+                        .select()
+                        .decodeList<NotificationData>()
+                    if (notifs.isNotEmpty()) {
+                        val latest = notifs.last()
+                        kotlinx.coroutines.withContext(Dispatchers.Main) {
+                            onNotificationReceived(latest)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("DashboardManager", "Polling error: ${e.message}")
+                }
+                kotlinx.coroutines.delay(30_000L)
             }
         }
     }
 
     suspend fun fetchAppUsage(): List<AppUsageData> {
         return try {
-            SupabaseManager.client.postgrest["app_usage"].select().decodeList<AppUsageData>()
+            SupabaseManager.client.from("app_usage")
+                .select()
+                .decodeList<AppUsageData>()
         } catch (e: Exception) {
             Log.e("DashboardManager", "Error fetching app usage: ${e.message}")
             emptyList()

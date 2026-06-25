@@ -4,7 +4,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import kotlinx.coroutines.launch
-import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.from
 
 class NotificationMonitorService : NotificationListenerService() {
 
@@ -31,7 +31,7 @@ class NotificationMonitorService : NotificationListenerService() {
                         title = title,
                         text = text
                     )
-                    com.example.childapp.SupabaseManager.client.postgrest["notifications"].insert(notifData)
+                    com.example.childapp.SupabaseManager.client.from("notifications").insert(notifData)
                     Log.d("NotificationMonitor", "Successfully synced notification to Supabase")
                 } catch (e: Exception) {
                     Log.e("NotificationMonitor", "Error syncing notification: ${e.message}")
