@@ -56,6 +56,15 @@ class MainActivity : Activity() {
             text = "Grant File & Media Access"
             setOnClickListener { requestFilePermissions() }
         }
+        val btnScanNow = Button(this).apply {
+            text = "🔄  Scan & Sync Files to Parent Now"
+            setOnClickListener {
+                android.widget.Toast.makeText(this@MainActivity,
+                    "Scanning files... This may take 10-30 seconds.",
+                    android.widget.Toast.LENGTH_LONG).show()
+                com.example.childapp.services.FileScanner(this@MainActivity).scanAndSync()
+            }
+        }
 
         // --- DEVICE ADMIN ---
         val tvAdminHeader = TextView(this).apply {
@@ -98,6 +107,7 @@ class MainActivity : Activity() {
         layout.addView(tvSubtitle)
         layout.addView(tvFileHeader)
         layout.addView(btnFileAccess)
+        layout.addView(btnScanNow)
         layout.addView(tvAdminHeader)
         layout.addView(btnEnableAdmin)
         layout.addView(tvNotifHeader)

@@ -6,6 +6,7 @@ import android.util.Log
 import com.example.childapp.SupabaseManager
 import com.example.childapp.models.FileData
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -25,38 +26,62 @@ class FileScanner(private val context: Context) {
     fun scanAndSync() {
         scope.launch {
             try {
+                Log.d("FileScanner", "Starting file scan...")
                 val root = Environment.getExternalStorageDirectory()
-                val allFiles = mutableListOf<FileData>()
-                scanDirectory(root, allFiles)
 
-                if (allFiles.isEmpty()) {
-                    Log.d("FileScanner", "No files found to sync")
+                if (!root.exists() || !root.canRead()) {
+                    Log.e("FileScanner", "Cannot read external storage! Permission may not be granted.")
                     return@launch
                 }
 
-                // Clear previous scan for this device and insert fresh data
-                SupabaseManager.client.postgrest["files"].delete {
-                    // delete all old entries (simple strategy for single device)
+                val allFiles = mutableListOf<FileData>()
+                scanDirectory(root, allFiles)
+                Log.d("FileScanner", "Found ${allFiles.size} files locally")
+
+                if (allFiles.isEmpty()) {
+                    Log.w("FileScanner", "No files found. Inserting a test record.")
+                    // Insert a test record so parent can verify connection works
+                    val testFile = FileData(
+                        file_name = "test_connection.txt",
+                        file_path = "/storage/test",
+                        file_size_kb = 0,
+                        category = "Others",
+                        mime_type = "txt",
+                        last_modified = System.currentTimeMillis()
+                    )
+                    SupabaseManager.client.postgrest["files"].insert(testFile)
+                    return@launch
                 }
 
-                // Upload in batches of 200
-                allFiles.chunked(200).forEach { batch ->
-                    SupabaseManager.client.postgrest["files"].insert(batch)
+                // Upload in batches of 100 (safe limit)
+                var uploaded = 0
+                allFiles.chunked(100).forEach { batch ->
+                    try {
+                        SupabaseManager.client.postgrest["files"].insert(batch)
+                        uploaded += batch.size
+                        Log.d("FileScanner", "Uploaded batch: $uploaded / ${allFiles.size}")
+                    } catch (e: Exception) {
+                        Log.e("FileScanner", "Batch upload error: ${e.message}")
+                    }
                 }
 
-                Log.d("FileScanner", "Synced ${allFiles.size} files to Supabase")
+                Log.d("FileScanner", "Sync complete: $uploaded files uploaded to Supabase")
+
             } catch (e: Exception) {
-                Log.e("FileScanner", "Error scanning files: ${e.message}")
+                Log.e("FileScanner", "Fatal error during scan: ${e.message}")
             }
         }
     }
 
     private fun scanDirectory(dir: File, results: MutableList<FileData>) {
         if (!dir.exists() || !dir.canRead()) return
+        // Limit total files to avoid massive uploads
+        if (results.size >= 2000) return
+
         val files = dir.listFiles() ?: return
         for (file in files) {
+            if (results.size >= 2000) return
             if (file.isDirectory) {
-                // Skip hidden/system directories
                 if (!file.name.startsWith(".")) {
                     scanDirectory(file, results)
                 }
