@@ -3,6 +3,8 @@ package com.example.childapp.services
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import kotlinx.coroutines.launch
+import io.github.jan.supabase.postgrest.postgrest
 
 class NotificationMonitorService : NotificationListenerService() {
 

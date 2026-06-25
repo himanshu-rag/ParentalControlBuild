@@ -4,6 +4,8 @@ import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import java.util.Calendar
+import kotlinx.coroutines.launch
+import io.github.jan.supabase.postgrest.postgrest
 
 class AppUsageHelper(private val context: Context) {
 
