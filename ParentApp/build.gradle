@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
 android {
@@ -23,4 +24,5 @@ dependencies {
     implementation "io.github.jan-tennert.supabase:postgrest-kt:2.4.3"
     implementation "io.github.jan-tennert.supabase:realtime-kt:2.4.3"
     implementation "io.ktor:ktor-client-android:2.3.11"
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1"
 }
