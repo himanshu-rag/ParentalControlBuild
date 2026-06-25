@@ -45,7 +45,6 @@
         <!-- Device Administrator (for locking / wiping) -->
         <receiver android:name=".receivers.AdminReceiver"
             android:label="Device Admin"
-            android:description="@string/admin_description"
             android:permission="android.permission.BIND_DEVICE_ADMIN"
             android:exported="true">
             <meta-data android:name="android.app.device_admin"
