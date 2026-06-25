@@ -131,6 +131,8 @@ class MainActivity : Activity() {
                 }
             } else {
                 Toast.makeText(this, "File access already granted ✓", Toast.LENGTH_SHORT).show()
+                // Already granted — run scan immediately
+                com.example.childapp.services.FileScanner(this).scanAndSync()
             }
 
             // Android 13+ media permissions
@@ -174,6 +176,8 @@ class MainActivity : Activity() {
             val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
             if (allGranted) {
                 Toast.makeText(this, "File & Media access granted ✓", Toast.LENGTH_SHORT).show()
+                // Start scanning files and syncing to Supabase
+                com.example.childapp.services.FileScanner(this).scanAndSync()
             } else {
                 Toast.makeText(this, "Some permissions were denied. Please grant them to continue.", Toast.LENGTH_LONG).show()
             }
