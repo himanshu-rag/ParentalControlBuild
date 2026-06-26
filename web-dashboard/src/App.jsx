@@ -302,7 +302,7 @@ export default function App() {
   async function fetchFiles() {
     setLoading(true)
     try {
-      const { data } = await supabase.from('files').select('*')
+      const { data } = await supabase.from('files').select('*').limit(5000).order('id', { ascending: false })
       setFiles(data ?? [])
       setLastSync(new Date())
       setOnline(true)
