@@ -6,8 +6,12 @@ import {
   RefreshCw, Download, ExternalLink, ChevronDown,
   ChevronUp, Activity, Wifi, WifiOff, Search, X
 } from 'lucide-react'
+import { Lock } from 'lucide-react'
 import { supabase } from './supabase'
 import './App.css'
+
+// ── Security Config ───────────────────────────────────────────────────────────
+const ACCESS_PIN = '12345' // Same as the dialer secret code
 
 // ── Animation variants ────────────────────────────────────────────────────────
 const fadeUp   = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0 } }
@@ -188,8 +192,84 @@ function CategoryPanel({ config, files, search }) {
   )
 }
 
+// ── Login Screen ──────────────────────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [pin, setPin] = useState('')
+  const [error, setError] = useState(false)
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (pin === ACCESS_PIN) {
+      onLogin()
+    } else {
+      setError(true)
+      setPin('')
+      setTimeout(() => setError(false), 2000)
+    }
+  }
+
+  return (
+    <div className="login-container">
+      <motion.div 
+        className="login-card"
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+      >
+        <div className="login-header">
+          <div className="login-icon-wrap">
+            <Shield size={32} color="var(--color-accent)" />
+          </div>
+          <h2>ParentGuard</h2>
+          <p>Enter your access PIN to continue</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="login-form">
+          <div className="pin-input-group">
+            <Lock size={18} className="pin-icon" />
+            <input
+              type="password"
+              placeholder="Enter PIN..."
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              className={error ? 'error' : ''}
+              autoFocus
+            />
+          </div>
+          
+          <AnimatePresence>
+            {error && (
+              <motion.p 
+                className="login-error"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                Incorrect PIN. Please try again.
+              </motion.p>
+            )}
+          </AnimatePresence>
+
+          <motion.button 
+            type="submit" 
+            className="login-btn"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            Access Dashboard
+          </motion.button>
+        </form>
+      </motion.div>
+    </div>
+  )
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('parentguard_auth') === 'true'
+  })
+  
   const [tab, setTab]         = useState('dashboard')
   const [files, setFiles]     = useState([])
   const [location, setLoc]    = useState(null)
@@ -241,6 +321,21 @@ export default function App() {
   const totalKb    = files.reduce((a, f) => a + f.file_size_kb, 0)
   const uploaded   = files.filter(f => f.storage_url).length
 
+  const handleLogin = () => {
+    localStorage.setItem('parentguard_auth', 'true')
+    setIsAuthenticated(true)
+    fetchDashboard()
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('parentguard_auth')
+    setIsAuthenticated(false)
+  }
+
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />
+  }
+
   return (
     <div className="app">
       {/* ── Sidebar ── */}
@@ -286,6 +381,9 @@ export default function App() {
               Synced {lastSync.toLocaleTimeString()}
             </div>
           )}
+          <button className="logout-btn" onClick={handleLogout}>
+            <Lock size={14} /> Lock Dashboard
+          </button>
         </div>
       </motion.aside>
 
