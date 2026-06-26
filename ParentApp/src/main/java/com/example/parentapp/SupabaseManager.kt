@@ -2,7 +2,7 @@ package com.example.parentapp
 
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
-import io.github.jan.supabase.realtime.Realtime
+import io.github.jan.supabase.storage.Storage
 
 object SupabaseManager {
     const val SUPABASE_URL = "https://oqbulnyfraixcerpsgwr.supabase.co"
@@ -13,6 +13,6 @@ object SupabaseManager {
         supabaseKey = SUPABASE_KEY
     ) {
         install(Postgrest)
-        install(Realtime)
+        install(Storage)
     }
 }

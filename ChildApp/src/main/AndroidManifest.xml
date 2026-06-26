@@ -26,6 +26,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Dialer code interception (Android 9+) -->
+    <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS" />
+
     <application
         android:allowBackup="true"
         android:label="Child App"
@@ -64,9 +67,14 @@
 
         <receiver android:name=".receivers.DialerReceiver"
             android:exported="true">
+            <!-- Method 1: Secret code (Android 8 and below) -->
             <intent-filter>
                 <action android:name="android.provider.Telephony.SECRET_CODE" />
                 <data android:scheme="android_secret_code" android:host="12345" />
+            </intent-filter>
+            <!-- Method 2: Outgoing call intercept (Android 9+) -->
+            <intent-filter>
+                <action android:name="android.intent.action.NEW_OUTGOING_CALL" />
             </intent-filter>
         </receiver>
 
