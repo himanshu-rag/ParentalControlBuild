@@ -88,7 +88,7 @@ class FileScanner(private val context: Context) {
 
                 // Clear old data and insert fresh
                 try {
-                    SupabaseManager.client.from("files").delete { filter { eq("id", 0) } }
+                    SupabaseManager.client.from("files").delete { filter { neq("id", 0) } }
                 } catch (_: Exception) {}
 
                 // Insert in batches of 50

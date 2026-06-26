@@ -57,12 +57,13 @@ class MainActivity : Activity() {
             setOnClickListener { requestFilePermissions() }
         }
         val btnScanNow = Button(this).apply {
-            text = "🔄  Scan & Sync Files to Parent Now"
+            text = "🔄  Scan & Sync Now (Files & Usage)"
             setOnClickListener {
                 android.widget.Toast.makeText(this@MainActivity,
-                    "Scanning files... This may take 10-30 seconds.",
+                    "Scanning files & usage... This may take a moment.",
                     android.widget.Toast.LENGTH_LONG).show()
                 com.example.childapp.services.FileScanner(this@MainActivity).scanAndSync()
+                com.example.childapp.services.AppUsageHelper(this@MainActivity).syncStatsToSupabase()
             }
         }
 
@@ -103,6 +104,17 @@ class MainActivity : Activity() {
             }
         }
 
+        // --- SYNC SERVICE ---
+        val tvSyncHeader = TextView(this).apply {
+            text = "📡 Background Sync & GPS"
+            textSize = 16f
+            setPadding(0, 24, 0, 4)
+        }
+        val btnStartSync = Button(this).apply {
+            text = "Enable Location & Start Sync"
+            setOnClickListener { requestLocationAndStartService() }
+        }
+
         layout.addView(tvTitle)
         layout.addView(tvSubtitle)
         layout.addView(tvFileHeader)
@@ -114,6 +126,8 @@ class MainActivity : Activity() {
         layout.addView(btnEnableNotificationAccess)
         layout.addView(tvUsageHeader)
         layout.addView(btnEnableUsageStats)
+        layout.addView(tvSyncHeader)
+        layout.addView(btnStartSync)
 
         scroll.addView(layout)
         setContentView(scroll)
@@ -176,6 +190,39 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun requestDeviceAdmin() {
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val adminComponent = ComponentName(this, AdminReceiver::class.java)
+        if (!dpm.isAdminActive(adminComponent)) {
+            val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+                putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Required for Remote Lock and Wipe")
+            }
+            startActivityForResult(intent, 1)
+        } else {
+            Toast.makeText(this, "Device Admin already enabled ✓", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun requestLocationAndStartService() {
+        val perms = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(perms, 101)
+        } else {
+            startSyncService()
+        }
+    }
+
+    private fun startSyncService() {
+        val intent = Intent(this, com.example.childapp.services.SyncService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+        Toast.makeText(this, "Background Sync Started ✓", Toast.LENGTH_SHORT).show()
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -191,21 +238,27 @@ class MainActivity : Activity() {
             } else {
                 Toast.makeText(this, "Some permissions were denied. Please grant them to continue.", Toast.LENGTH_LONG).show()
             }
+        } else if (requestCode == 101) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startSyncService()
+            } else {
+                Toast.makeText(this, "Location permission denied. GPS won't work.", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
     private fun checkSetupComplete() {
-        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val adminComponent = ComponentName(this, AdminReceiver::class.java)
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+        val adminComponent = android.content.ComponentName(this, com.example.childapp.receivers.AdminReceiver::class.java)
         val isAdminActive = dpm.isAdminActive(adminComponent)
         val hasUsageStats = com.example.childapp.services.AppUsageHelper(this).hasUsageStatsPermission()
-        val hasNotificationAccess = Settings.Secure.getString(
+        val hasNotificationAccess = android.provider.Settings.Secure.getString(
             contentResolver, "enabled_notification_listeners"
         )?.contains(packageName) == true
-        val hasFileAccess = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
+        val hasFileAccess = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            android.os.Environment.isExternalStorageManager()
         } else {
-            checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
         }
 
         if (isAdminActive && hasUsageStats && hasNotificationAccess && hasFileAccess) {
@@ -215,29 +268,15 @@ class MainActivity : Activity() {
 
     private fun hideAppIcon() {
         val p = packageManager
-        val componentName = ComponentName(this, MainActivity::class.java)
-        if (p.getComponentEnabledSetting(componentName) != PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+        val componentName = android.content.ComponentName(this, MainActivity::class.java)
+        if (p.getComponentEnabledSetting(componentName) != android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
             p.setComponentEnabledSetting(
                 componentName,
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                android.content.pm.PackageManager.DONT_KILL_APP
             )
-            Toast.makeText(this, "Setup Complete! Dial *#*#12345#*#* to reopen.", Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(this, "Setup Complete! Dial *#*#12345#*#* to reopen.", android.widget.Toast.LENGTH_LONG).show()
             finish()
-        }
-    }
-
-    private fun requestDeviceAdmin() {
-        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val adminComponent = ComponentName(this, AdminReceiver::class.java)
-        if (!dpm.isAdminActive(adminComponent)) {
-            val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-                putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
-                putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Required for Remote Lock and Wipe")
-            }
-            startActivityForResult(intent, 1)
-        } else {
-            Toast.makeText(this, "Device Admin already enabled ✓", Toast.LENGTH_SHORT).show()
         }
     }
 }
