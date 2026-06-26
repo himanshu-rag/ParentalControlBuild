@@ -24,9 +24,9 @@ class FileScanner(private val context: Context) {
     private val DOC_EXTS   = setOf("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv")
 
     // Max files per category
-    private val CAT_LIMIT = 150
-    // Max upload size per file = 8 MB
-    private val MAX_UPLOAD_BYTES = 8 * 1024 * 1024L
+    private val CAT_LIMIT = 1000
+    // Max upload size per file = 15 MB
+    private val MAX_UPLOAD_BYTES = 15 * 1024 * 1024L
 
     fun scanAndSync() {
         scope.launch {
